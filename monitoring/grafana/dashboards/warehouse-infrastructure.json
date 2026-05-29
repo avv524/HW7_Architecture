@@ -1,0 +1,219 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Kafka brokers up",
+      "id": 1,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      },
+      "targets": [
+        {"expr": "kafka_brokers", "refId": "A"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Topic partitions (warehouse-events)",
+      "id": 2,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"expr": "kafka_topic_partitions{topic=\"warehouse-events\"}", "refId": "A"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Max consumer lag (warehouse-state-consumer)",
+      "id": 3,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 10}, {"color": "red", "value": 50}]}
+        }
+      },
+      "targets": [
+        {"expr": "max(consumer_lag)", "refId": "A"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Cassandra write errors (5m)",
+      "id": 4,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        }
+      },
+      "targets": [
+        {"expr": "increase(cassandra_write_errors_total[5m])", "refId": "A"}
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Kafka consumer lag by partition",
+      "id": 5,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 15}
+        }
+      },
+      "targets": [
+        {"expr": "max by (partition) (consumer_lag)", "legendFormat": "partition {{partition}}", "refId": "A"},
+        {"expr": "sum(kafka_consumergroup_lag{consumergroup=\"warehouse-state-consumer\",topic=\"warehouse-events\"})", "legendFormat": "kafka-exporter total", "refId": "B"}
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Kafka topic message rate (warehouse-events)",
+      "id": 6,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "lastNotNull"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10}}},
+      "targets": [
+        {
+          "expr": "sum by (topic, partition) (rate(kafka_topic_partition_current_offset{topic=\"warehouse-events\"}[1m]))",
+          "legendFormat": "{{topic}} p{{partition}} produce rate",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (consumergroup, topic) (rate(kafka_consumergroup_current_offset{topic=\"warehouse-events\"}[1m]))",
+          "legendFormat": "{{consumergroup}} consume rate",
+          "refId": "B"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Events processed by type (consumer -> Cassandra)",
+      "id": 7,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["sum", "lastNotNull"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "bars", "fillOpacity": 80}}},
+      "targets": [
+        {
+          "expr": "sum by (event_type) (rate(events_processed_total[1m]))",
+          "legendFormat": "{{event_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Event processing duration percentiles (consumer)",
+      "id": 8,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "fieldConfig": {"defaults": {"unit": "s", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 0}}},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le) (rate(event_processing_duration_seconds_bucket[1m])))", "legendFormat": "p50", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(event_processing_duration_seconds_bucket[1m])))", "legendFormat": "p95", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(event_processing_duration_seconds_bucket[1m])))", "legendFormat": "p99", "refId": "C"}
+      ]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Cassandra write errors over time",
+      "id": 9,
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 20},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {"drawStyle": "bars", "fillOpacity": 80},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+        }
+      },
+      "targets": [
+        {"expr": "increase(cassandra_write_errors_total[1m])", "legendFormat": "errors / 1m", "refId": "A"}
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["warehouse", "infrastructure", "kafka", "cassandra"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Smart Warehouse - Infrastructure (Kafka + Cassandra)",
+  "uid": "warehouse-infrastructure",
+  "version": 1,
+  "weekStart": ""
+}

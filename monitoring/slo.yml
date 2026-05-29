@@ -1,0 +1,47 @@
+
+slos:
+  - name: wms_availability
+    objective: 0.99
+    description: >
+      99% of WMS requests must succeed (status code < 500). Server errors that
+      indicate a bug or outage burn the budget; client errors (4xx) do not.
+      When there is no traffic, availability is treated as 1.0 (perfect).
+    sli_query: |
+      (
+        sum(rate(http_requests_total{service="wms",status!~"5.."}[5m]))
+        /
+        sum(rate(http_requests_total{service="wms"}[5m]))
+      ) or vector(1)
+
+  - name: wms_latency_p95
+    objective: 0.5
+    objective_unit: seconds
+    description: >
+      95th percentile of WMS request duration must be at or below 500 ms.
+      When there is no traffic, latency is treated as 0 (satisfied).
+    sli_query: |
+      histogram_quantile(
+        0.95,
+        sum by (le) (rate(http_request_duration_seconds_bucket{service="wms"}[5m]))
+      ) or vector(0)
+    direction: less_or_equal
+
+  - name: pipeline_freshness
+    objective: 50
+    objective_unit: messages
+    description: >
+      Max Kafka consumer lag (warehouse-state-consumer) must stay <= 50
+      messages. Higher values mean the consumer is falling behind the producer.
+    sli_query: |
+      max(consumer_lag)
+    direction: less_or_equal
+
+  - name: cassandra_durability
+    objective: 0
+    objective_unit: errors_per_5m
+    description: >
+      Zero Cassandra write errors are tolerated over a rolling 5-minute window.
+      A single write error breaks this SLO.
+    sli_query: |
+      sum(increase(cassandra_write_errors_total[5m]))
+    direction: less_or_equal

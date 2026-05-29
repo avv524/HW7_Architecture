@@ -1,0 +1,75 @@
+groups:
+  - name: warehouse-services
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Service target {{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.job }} ({{ $labels.instance }}) for >= 1m. This breaks the API availability SLO."
+
+      - alert: HighHttpErrorRate
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status=~"5..|4.."}[5m]))
+            /
+            clamp_min(sum by (service) (rate(http_requests_total[5m])), 1)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "High HTTP error rate on {{ $labels.service }}"
+          description: "Error rate (>=400) for service {{ $labels.service }} is {{ $value | humanizePercentage }} over the last 5m (threshold 5%)."
+
+      - alert: HighRequestLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "p95 latency above 1s on {{ $labels.service }}"
+          description: "p95 latency for {{ $labels.service }} is {{ $value }}s over 5m (threshold 1s, SLO 0.5s)."
+
+  - name: warehouse-pipeline
+    rules:
+      - alert: KafkaConsumerLagHigh
+        expr: max(consumer_lag) > 50
+        for: 1m
+        labels:
+          severity: warning
+          slo: event_processing_delay
+        annotations:
+          summary: "Kafka consumer lag is high"
+          description: "Max partition lag for warehouse-state-consumer is {{ $value }} (threshold 50) for >= 1m."
+
+      - alert: CassandraWriteErrors
+        expr: increase(cassandra_write_errors_total[1m]) > 0
+        for: 0s
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Cassandra write errors detected"
+          description: "Consumer reported {{ $value }} Cassandra write error(s) in the last minute."
+
+      - alert: NoEventsProcessed
+        expr: |
+          (sum(rate(events_processed_total[5m])) == 0)
+          and (sum(rate(http_requests_total{service="wms",endpoint="/events",status=~"2.."}[5m])) > 0)
+        for: 2m
+        labels:
+          severity: warning
+          slo: event_processing_delay
+        annotations:
+          summary: "No events processed by consumer while producer is active"
+          description: "WMS is publishing successfully (>0 rps) but consumer events_processed_total is flat for >= 2m."
